@@ -91,7 +91,6 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
           context: context,
           builder: (context) {
             return SimpleDialog(
-              useMaterialBorderRadius: true,
               title: Text(
                 'Enable location services',
                 style: GoogleFonts.lato(),
@@ -262,11 +261,20 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
               title: FadeScaleTransition(
                 animation: fadeScaleController,
                 child: Center(
-                  child: Text(
-                    'WRIGHT WEATHER',
+                  child: RichText(
+                    text: TextSpan(
+                      text: 'WRIGHT ',
                     style: GoogleFonts.montserrat(
-                        fontSize: 30, fontWeight: FontWeight.bold),
-                  ),
+                        fontSize: 30, fontWeight: FontWeight.bold,
+                    color: Colors.white),
+                      children:  [
+                        TextSpan(
+                        text: 'WEATHER',
+                        style: GoogleFonts.montserrat(
+                            fontSize: 30, fontWeight: FontWeight.bold,
+                        color: Colors.black),)
+                      ]
+                    )),
                 ),
               ),
             ),

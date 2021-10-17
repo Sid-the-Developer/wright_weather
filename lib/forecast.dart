@@ -41,14 +41,14 @@ class Forecast {
   /// sets [days] and [hours] to correct NWS JSON
   setConditions() async {
     try {
-      String response = await http.read(forecastUrl,
+      String response = await http.read(Uri.parse(forecastUrl),
           headers: {'User-Agent': 'Wright Weather App, swright3743@gmail.com'});
       Map data = await json.decode(response);
       try {
         days = data['properties']['periods'];
       } on Exception {}
 
-      String hourlyResponse = await http.read(hourlyForecastUrl,
+      String hourlyResponse = await http.read(Uri.parse(hourlyForecastUrl),
           headers: {'User-Agent': 'Wright Weather App, swright3743@gmail.com'});
       Map hourlyData = await json.decode(hourlyResponse);
       try {

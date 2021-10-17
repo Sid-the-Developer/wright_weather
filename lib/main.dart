@@ -93,7 +93,7 @@ void removeLocation(Location location) {
 Future<void> getForecast(Location location) async {
   try {
     String response = await http.read(
-        'https://api.weather.gov/points/${location.lat},${location.lon}',
+        Uri.parse('https://api.weather.gov/points/${location.lat},${location.lon}'),
         headers: {'User-Agent': 'Wright Weather App, swright3743@gmail.com'});
 
     location.forecast = Forecast.fromJSON(json.decode(response));

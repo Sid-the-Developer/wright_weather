@@ -1,4 +1,4 @@
-import 'package:fl_animated_linechart/fl_animated_linechart.dart';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -251,8 +251,8 @@ class DetailedPageState extends State<DetailedPage> {
 
   /// card of temp graph for current day TODO finish temp graph
   Widget _buildTempGraph(Location location) {
-    LineChart chart;
-    // LineChart.fromDateTimeMaps(series, colors, units)
+
+
 
     return Card(
         elevation: .75,
