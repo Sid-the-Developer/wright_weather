@@ -32,6 +32,11 @@ class SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
   }
 
   @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+  @override
   Widget build(BuildContext context) {
     return GestureDetector(
         onTap: () => Navigator.of(context).pushReplacement(SharedAxisPageRoute(

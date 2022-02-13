@@ -2,10 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:animations/animations.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:geocoder/geocoder.dart';
+// import 'package:geocoder/geocoder.dart';
+// import 'package:geocode/geocode.dart';
+import 'package:geocoding/geocoding.dart' as geocode;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:location/location.dart' as location_plugin;
 import 'package:permission_handler/permission_handler.dart';
@@ -46,46 +47,52 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
   /// FadeScaleTransition controller (search and FAB)
   AnimationController fadeScaleController;
 
+  /// instance variable so that [currentLocation] is not null
+  location_plugin.LocationData currentLocation;
+  location_plugin.Location locator = location_plugin.Location();
+
   /// get and add current location to locations list
   Future<void> _getCurrentLocation() async {
-    location_plugin.LocationData currentLocation;
-    location_plugin.Location locator = location_plugin.Location();
-
     if (await Permission.location.serviceStatus.isEnabled) {
       /// not tested but should
       if (await Permission.locationAlways.isGranted) {
         locator.onLocationChanged.listen((location) {
           currentLocation = location;
+          _getCurrentLocation(); /// update forecast when location changed
         });
       } else if (await Permission.location.request().isGranted) {
         currentLocation = await locator.getLocation();
       }
 
-      List<Address> addresses = await Geocoder.local
-          .findAddressesFromCoordinates(Coordinates(
-              currentLocation?.latitude, currentLocation?.longitude));
+      // Address address = await geocode.reverseGeocoding(latitude: currentLocation?.latitude,
+      //     longitude: currentLocation?.longitude);
 
-      Location location = Location(
-        name: '${addresses.first.locality}, ${addresses.first.adminArea}',
-        lon: currentLocation.longitude,
-        lat: currentLocation.latitude,
-        isCurrentLocation: true,
-      );
+      if (currentLocation != null)  {
+        List<geocode.Placemark> addresses =
+            await geocode.placemarkFromCoordinates(
+                currentLocation?.latitude, currentLocation?.longitude);
 
-      if (locations.isEmpty) {
-        locations.add(location);
-        insertLocation(locations.indexOf(location));
-        await getForecast(location).catchError((e) {
-          showSnackbar(scaffoldKey,
-              'Something went wrong while adding ${location.name}');
-          locations.remove(location);
-          _getCurrentLocation();
-        });
-      } else {
-        locations[0] = location;
-        getForecast(location).then((value) => setState(() {}));
+        Location location = Location(
+          name: '${addresses.first.locality}, ${addresses.first.administrativeArea}',
+          lon: currentLocation.longitude,
+          lat: currentLocation.latitude,
+          isCurrentLocation: true,
+        );
+
+        if (locations.isEmpty) {
+          locations.add(location);
+          insertLocation(locations.indexOf(location));
+          await getForecast(location).catchError((e) {
+            showSnackbar(context,
+                'Something went wrong while getting forecast for ${location.name}');
+            locations.remove(location);
+          });
+        } else {
+          locations[0] = location;
+          getForecast(location).then((value) => setState(() {}));
+        }
       }
-    } else if (!dialogShown) {
+    } else if (!dialogShown) { /// location services prompt logic
       dialogShown = true;
       showDialog(
           context: context,
@@ -98,11 +105,12 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
               children: [
                 Padding(
                   padding: EdgeInsets.only(left: 100, right: 100),
-                  child: RaisedButton(
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
                     elevation: 4,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(5)),
-                    color: Colors.blue[600],
+                    primary: Colors.blue[600],),
                     onPressed: () {
                       Navigator.of(context).pop();
                       _getCurrentLocation();
@@ -199,7 +207,7 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
           onPressed: () =>
               showSearch(context: context, delegate: Delegate()).then((value) {
             if (value != null)
-              addLocation(Location(name: value), _scaffoldKey, (_) {
+              addLocation(context, Location(name: value), (_) {
                 setState(() {});
                 _scrollController.animateTo(
                     _scrollController.position.maxScrollExtent,
@@ -209,7 +217,7 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
               });
           }),
           child: Icon(Icons.add, color: Colors.white),
-          backgroundColor: Theme.of(context).accentColor,
+          backgroundColor: Theme.of(context).colorScheme.secondary,
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
@@ -248,13 +256,11 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
       ),
       body: NestedScrollView(
         physics: BouncingScrollPhysics(),
-
         /// TODO fix the sliver bar not retracting due  to ListView scroll controller
         headerSliverBuilder: (context, index) {
           return [
             SliverAppBar(
               elevation: 6,
-              brightness: Brightness.dark,
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(15)),
               backgroundColor: Color(0xff24A4FE),
@@ -295,24 +301,18 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
           ];
         },
         body: RefreshIndicator(
-          strokeWidth: 3,
-          key: Key('refresh'),
-          onRefresh: refresh,
-          child: ListView(
-            controller: _scrollController,
-            padding: EdgeInsets.only(bottom: 75),
-            physics: BouncingScrollPhysics(),
-            children: [
-              AnimatedList(
-                  physics: BouncingScrollPhysics(),
-                  shrinkWrap: true,
-                  key: listKey,
-                  initialItemCount: locations.length,
-                  itemBuilder: (context, index, Animation animation) {
-                    return buildDraggable(locations[index], animation);
-                  }),
-            ],
-          ),
+        strokeWidth: 3,
+        key: Key('refresh'),
+        onRefresh: refresh,
+        color: Theme.of(context).colorScheme.secondary,
+        child: AnimatedList(
+              physics: BouncingScrollPhysics(),
+              shrinkWrap: true,
+              key: listKey,
+              initialItemCount: locations.length,
+              itemBuilder: (context, index, Animation animation) {
+                return buildDraggable(locations[index], animation);
+              }),
         ),
       ),
     );
@@ -353,7 +353,7 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
                 onDismissed: (direction) {
                   int index = locations.indexOf(location);
                   removeLocation(location);
-                  showSnackbar(_scaffoldKey, '${location.name} removed',
+                  showSnackbar(context, '${location.name} removed',
                       action: SnackBarAction(
                           label: 'UNDO',
                           onPressed: () {
@@ -456,7 +456,7 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
                                     : ' ${(location.getTemp(day: 0).toString() + '°').contains('null') ? '' : location.getTemp(day: 0).toString() + '°'}',
                                 style: GoogleFonts.questrial(
                                     fontSize: 60,
-                                    color: Theme.of(context).accentColor,
+                                    color: Theme.of(context).colorScheme.secondary,
                                     fontWeight: FontWeight.bold)),
                           ),
                         )),
@@ -534,7 +534,7 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
                       : ' ${(location.getTemp(day: 0).toString() + '°').contains('null') ? '' : location.getTemp(day: 0).toString() + '°'}',
                   style: GoogleFonts.questrial(
                       fontSize: 36,
-                      color: Theme.of(context).accentColor,
+                      color: Theme.of(context).colorScheme.secondary,
                       fontWeight: FontWeight.bold)),
               subtitle: Text('${location.getShort(day: 0) ?? 'Loading...'}',
                   style: GoogleFonts.lato(

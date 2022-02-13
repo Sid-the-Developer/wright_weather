@@ -44,7 +44,7 @@ class DetailedPageState extends State<DetailedPage> {
             showSearch(context: context, delegate: Delegate()).then((value) {
           Location location = Location(name: value);
           if (value != null)
-            addLocation(location, _scaffoldKey, (_) {
+            addLocation(context, location, (_) {
               setState(() {});
 
               _controller.animateToPage(locations.indexOf(location),
@@ -54,7 +54,7 @@ class DetailedPageState extends State<DetailedPage> {
             });
         }),
         child: Icon(Icons.add, color: Colors.white),
-        backgroundColor: Theme.of(context).accentColor,
+        backgroundColor: Theme.of(context).colorScheme.secondary,
       ),
       body: PageView.builder(
           key: detailKey,
@@ -76,7 +76,7 @@ class DetailedPageState extends State<DetailedPage> {
                   });
 
                   /// undo location removal snackbar
-                  showSnackbar(_scaffoldKey, '${location.name} removed',
+                  showSnackbar(context, '${location.name} removed',
                       action: SnackBarAction(
                           label: 'UNDO',
                           onPressed: () {
@@ -197,7 +197,7 @@ class DetailedPageState extends State<DetailedPage> {
                                 textAlign: TextAlign.center,
                                 style: GoogleFonts.questrial(
                                     fontSize: 60,
-                                    color: Theme.of(context).accentColor,
+                                    color: Theme.of(context).colorScheme.secondary,
                                     fontWeight: FontWeight.bold)),
                           ),
                         ),

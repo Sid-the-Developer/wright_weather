@@ -3,7 +3,9 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:geocoder/geocoder.dart';
+// import 'package:geocoder/geocoder.dart';
+// import 'package:geocode/geocode.dart';
+import 'package:geocoding/geocoding.dart' as geocode;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
@@ -21,23 +23,23 @@ bool detailedView;
 List<Location> locations = [];
 List cityList;
 bool prefsSet = false;
+/// Geocode plugin initialization
+// GeoCode geocode = GeoCode();
 
 /// key to insert and remove items in animated list
 GlobalKey<AnimatedListState> listKey = GlobalKey();
+
 GlobalKey<AnimatedListState> detailKey = GlobalKey();
 
-/// key to display snackbars in scaffold
-GlobalKey<ScaffoldState> scaffoldKey = GlobalKey();
-
 /// global methods for [detailedPage.dart]
-/// I really need more organization of files XD
+/// I really need more organization of files...
 toCelsius(temp) =>
     temp == null ? '' : ((temp - 32) * 5.0 / 9).round().toString() + '°';
 
-showSnackbar(GlobalKey<ScaffoldState> scaffoldKey, String text,
+showSnackbar(BuildContext context, String text,
     {SnackBarAction action}) {
-  scaffoldKey.currentState.hideCurrentSnackBar();
-  scaffoldKey.currentState.showSnackBar(SnackBar(
+  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       behavior: SnackBarBehavior.floating,
       duration: Duration(seconds: 2),
       content: Text(
@@ -50,35 +52,36 @@ showSnackbar(GlobalKey<ScaffoldState> scaffoldKey, String text,
 
 /// adds the passed location in locations
 /// TODO MAKE IT SPEEEEED
-Future<void> addLocation(Location location,
-    GlobalKey<ScaffoldState> scaffoldKey, Function action) async {
+Future<void> addLocation(BuildContext context, Location location, Function action) async {
   if (!locations.contains(location)) {
-    List<Address> addresses =
-        await Geocoder.local.findAddressesFromQuery('${location.name}');
+    // Coordinates coordinates = await geocode.forwardGeocoding(address: location.name);
+    List<geocode.Location> addresses = await geocode.locationFromAddress(location.name);
+    // Deprecated Geocoder plugin
+    // List<Address> addresses =
+    //     await Geocoder.local.findAddressesFromQuery('${location.name}');
 
-    location.lon = addresses.first.coordinates.longitude;
-    location.lat = addresses.first.coordinates.latitude;
+    location.lon = addresses.first.longitude;
+    location.lat = addresses.first.latitude;
 
     locations.add(location);
     // insert location before getting forecast because
     insertLocation(locations.indexOf(location));
     getForecast(location).then(action, onError: (e) {
       // show error and try again
-      showSnackbar(
-          scaffoldKey, 'Something went wrong while adding ${location.name}');
+      showSnackbar(context, 'Something went wrong while adding ${location.name}');
       removeLocation(location);
-      addLocation(location, scaffoldKey, action);
+      addLocation(context, location, action);
     });
   } else {
     showSnackbar(
-      scaffoldKey,
+      context,
       '${location.name} already added',
     );
   }
 }
 
 void removeLocation(Location location) {
-  /// removes with Dismissable swipe
+  /// removes with Dismissible swipe
   int index = locations.indexOf(location);
   locations.remove(location);
   if (prefsSet) prefs.setString('locations', Location.encodeList(locations));
@@ -280,13 +283,14 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
         primaryColorLight: Color(0xff24A4FE),
-        primaryColorDark: Colors.blue[900],
-        primaryColorBrightness: Brightness.dark,
-        accentColor: Colors.deepOrange[300],
         dividerColor: Colors.black,
         colorScheme: ColorScheme.fromSwatch(
           primarySwatch: Colors.blue,
+          accentColor: Colors.deepOrange[300],
+          primaryColorDark: Colors.blue[900],
         ),
+
+
         // This makes the visual density adapt to the platform that you run
         // the app on. For desktop platforms, the controls will be smaller and
         // closer together (more dense) than on mobile platforms.
