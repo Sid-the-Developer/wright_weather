@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:syncfusion_flutter_charts/charts.dart';
 
 import 'locationData.dart';
 import 'main.dart';
@@ -249,9 +250,6 @@ class DetailedPageState extends State<DetailedPage> {
 
   /// card of temp graph for current day TODO finish temp graph
   Widget _buildTempGraph(Location location) {
-
-
-
     return Card(
         elevation: .75,
         shape: RoundedRectangleBorder(
@@ -260,7 +258,15 @@ class DetailedPageState extends State<DetailedPage> {
         color: Colors.white,
         child: Padding(
           padding: EdgeInsets.all(8),
-          // child: AnimatedLineChart(chart, key: Key('chart')),
+          child: SfCartesianChart(
+            title: ChartTitle(text: 'Hourly Forecast',
+                textStyle: GoogleFonts.questrial(
+                fontSize: 60,
+                color: Theme.of(context).colorScheme.secondary,
+                fontWeight: FontWeight.bold)),
+            legend: Legend(isVisible: true, ),
+            axes: [],
+          )
         ));
   }
 
