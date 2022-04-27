@@ -7,17 +7,20 @@ class Forecast {
       {this.days = const [],
       this.hours = const [],
       this.conditionsSet = false});
+
   dynamic days = [];
   dynamic hours;
-  String forecastUrl;
-  String hourlyForecastUrl;
+  String forecastUrl = '';
+  String hourlyForecastUrl = '';
   bool conditionsSet = false;
 
   Forecast.fromJSON(Map<String, dynamic> data) {
+    // parses raw data from http request
     try {
       forecastUrl = data['properties']['forecast'];
       hourlyForecastUrl = data['properties']['forecastHourly'];
     } on NoSuchMethodError {
+      // parses saved data from SharedPrefs
       try {
         days = data['days'];
         hours = data['hours'];

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
+import 'package:intl/intl.dart';
 
 import 'locationData.dart';
 import 'main.dart';
@@ -9,7 +10,7 @@ import 'search.dart';
 //initial page index
 
 class DetailedPage extends StatefulWidget {
-  DetailedPage(this.index, {Key key}) : super(key: key);
+  DetailedPage(this.index, {Key? key}) : super(key: key);
   final int index;
 
   @override
@@ -18,18 +19,13 @@ class DetailedPage extends StatefulWidget {
 
 class DetailedPageState extends State<DetailedPage> {
   DetailedPageState(this.initialPage);
+
   int initialPage;
-  PageController _controller;
+  late PageController _controller =
+      PageController(viewportFraction: .9, initialPage: initialPage);
 
   PageScrollPhysics pagePhysics = PageScrollPhysics();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey();
-
-  @override
-  void initState() {
-    super.initState();
-    _controller =
-        PageController(viewportFraction: .9, initialPage: initialPage);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,13 +41,12 @@ class DetailedPageState extends State<DetailedPage> {
             showSearch(context: context, delegate: Delegate()).then((value) {
           Location location = Location(name: value);
           if (value != null)
-            addLocation(context, location, (_) {
-              setState(() {});
+            addLocation(context, location).then((_) {
+              // setState(() {}); animation could automatically setstate
 
               _controller.animateToPage(locations.indexOf(location),
                   duration: Duration(milliseconds: 1000),
                   curve: /*TODO test curve*/ Curves.easeInOutCirc);
-              return true as dynamic;
             });
         }),
         child: Icon(Icons.add, color: Colors.white),
@@ -92,13 +87,14 @@ class DetailedPageState extends State<DetailedPage> {
 
                 /// column of city name and list of cards
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Padding(
                       padding: const EdgeInsets.only(bottom: 32, top: 32),
                       child: GestureDetector(
                         onVerticalDragUpdate: (DragUpdateDetails details) {
-                          if (details.primaryDelta > 5) {
+                          if (details.primaryDelta! > 5) {
                             Navigator.of(context).pop();
                           }
                         },
@@ -127,7 +123,7 @@ class DetailedPageState extends State<DetailedPage> {
                                         padding: const EdgeInsets.only(
                                             left: 16, right: 16),
                                         child: Text(
-                                          location?.name,
+                                          location.name,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           textAlign: TextAlign.center,
@@ -144,14 +140,16 @@ class DetailedPageState extends State<DetailedPage> {
                     ),
 
                     /// list of cards
-                    ListView(
-                      physics: BouncingScrollPhysics(),
-                      shrinkWrap: true,
-                      children: [
-                        _buildMainCard(location),
-                        _buildTempGraph(location),
-                        _buildDetails(location)
-                      ],
+                    Expanded(
+                      child: ListView(
+                        physics: BouncingScrollPhysics(),
+                        shrinkWrap: true,
+                        children: [
+                          _buildMainCard(location),
+                          _buildTempGraph(location),
+                          _buildDetails(location)
+                        ],
+                      ),
                     ),
                   ],
                 ));
@@ -166,7 +164,7 @@ class DetailedPageState extends State<DetailedPage> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       color: Colors.white,
       child: Padding(
-          padding: EdgeInsets.all(8),
+          padding: EdgeInsets.only(top: 8, bottom: 8),
 
           /// column of forecast icon, temp, description, and 7-day
           child: Column(
@@ -198,17 +196,15 @@ class DetailedPageState extends State<DetailedPage> {
                                 textAlign: TextAlign.center,
                                 style: GoogleFonts.questrial(
                                     fontSize: 60,
-                                    color: Theme.of(context).colorScheme.secondary,
+                                    color:
+                                        Theme.of(context).colorScheme.secondary,
                                     fontWeight: FontWeight.bold)),
                           ),
                         ),
                       ),
                       Spacer(),
                       icon(
-                          location.forecast?.getDaily(
-                                index,
-                                'shortForecast',
-                              ) ??
+                          location.getShort(day: index) ??
                               '',
                           size: 75,
                           label: true),
@@ -225,8 +221,9 @@ class DetailedPageState extends State<DetailedPage> {
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 8.0),
                   child: Text(
-                      '${location.forecast?.getDaily(0, 'name') ?? 'Loading...'} '
-                      '${location.forecast?.getDaily(0, 'name') != null ? location.time ?? '' : ''}\n',
+                      '${location.forecast.getDaily(0, 'name') /* ?? 'Loading...' */} '
+                      '${location.forecast.getDaily(0, 'name') != null ? location.time /* ?? '' */
+                          : ''}\n',
                       textAlign: TextAlign.center,
                       style: GoogleFonts.lato(
                           fontStyle: FontStyle.italic,
@@ -234,14 +231,17 @@ class DetailedPageState extends State<DetailedPage> {
                           color: Colors.grey[600])),
                 ),
               ),
-              RichText(
-                  textAlign: TextAlign.center,
-                  text: TextSpan(
-                      text: location.getDetailed(0),
-                      style: GoogleFonts.lato(
-                          fontSize: 18,
-                          color: Colors.black,
-                          fontStyle: FontStyle.italic))),
+              Padding(
+                padding: const EdgeInsets.only(left: 16, right: 16),
+                child: RichText(
+                    textAlign: TextAlign.center,
+                    text: TextSpan(
+                        text: location.getDetailed(0),
+                        style: GoogleFonts.lato(
+                            fontSize: 18,
+                            color: Colors.black,
+                            fontStyle: FontStyle.italic))),
+              ),
               buildSevenDay(location)
             ],
           )),
@@ -257,17 +257,59 @@ class DetailedPageState extends State<DetailedPage> {
         ),
         color: Colors.white,
         child: Padding(
-          padding: EdgeInsets.all(8),
-          child: SfCartesianChart(
-            title: ChartTitle(text: 'Hourly Forecast',
-                textStyle: GoogleFonts.questrial(
-                fontSize: 60,
-                color: Theme.of(context).colorScheme.secondary,
-                fontWeight: FontWeight.bold)),
-            legend: Legend(isVisible: true, ),
-            axes: [],
-          )
-        ));
+            padding: EdgeInsets.only(top: 8, bottom: 8),
+            child: SfCartesianChart(
+              margin: EdgeInsets.zero,
+              primaryXAxis: CategoryAxis(
+                  majorGridLines: MajorGridLines(width: 0), visibleMaximum: 8,labelPlacement: LabelPlacement.onTicks),
+
+              /// TODO DateTimeAxis(),
+              primaryYAxis: NumericAxis(isVisible: false, anchorRangeToVisiblePoints: false),
+              plotAreaBorderWidth: 0,
+              zoomPanBehavior: ZoomPanBehavior(enablePanning: true),
+              // title: ChartTitle(text: 'Hourly Forecast',
+              //     textStyle: GoogleFonts.questrial(
+              //     fontSize: 18,
+              //     color: Theme.of(context).colorScheme.secondary,
+              //     fontWeight: FontWeight.bold)),
+              legend: Legend(
+                isVisible: false,
+              ),
+              enableAxisAnimation: true,
+              series: _buildSeries(location),
+            )));
+  }
+
+  /// TODO format chart x axis labels to datetime using intl.dart
+  List<ChartSeries<int, String>> _buildSeries(Location location) {
+    return [
+      SplineAreaSeries<int, String>(
+        dataSource: List.generate(
+            12,
+            (int index) => location.getTemp(hour: index) is String
+                ? 0
+                : location.getTemp(hour: index)),
+        xValueMapper: (_, hour) =>
+            location.forecast.getHourly(hour, 'startTime'),
+        yValueMapper: (temp, _) => temp,
+        xAxisName: 'Hours',
+        yAxisName: 'Degrees',
+        // borderWidth: 2,
+        // borderColor: Theme.of(context).colorScheme.secondary,
+        isVisibleInLegend: false,
+        // markerSettings: MarkerSettings(isVisible: true, width: 5, height: 5, color: Theme.of(context).colorScheme.secondary),
+        dataLabelSettings: DataLabelSettings(
+            isVisible: true,
+            labelAlignment: ChartDataLabelAlignment.bottom,
+            // color: Theme.of(context).colorScheme.primary,
+            textStyle: GoogleFonts.lato()),
+        dataLabelMapper: (temp, _) => '${temp}°',
+        gradient: LinearGradient(colors: [
+          Theme.of(context).colorScheme.secondary,
+          Theme.of(context).colorScheme.secondary.withOpacity(.5)
+        ], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+      )
+    ];
   }
 
   /// details card with wind speed, rain in in., UV index, air quality, etc.

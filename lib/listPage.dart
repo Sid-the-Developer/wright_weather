@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:animations/animations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 // import 'package:geocoder/geocoder.dart';
 // import 'package:geocode/geocode.dart';
 import 'package:geocoding/geocoding.dart' as geocode;
@@ -19,7 +20,7 @@ import 'main.dart';
 import 'settings.dart';
 
 class MainPage extends StatefulWidget {
-  MainPage({Key key}) : super(key: key);
+  MainPage({Key? key}) : super(key: key);
 
   @override
   MainPageState createState() => MainPageState();
@@ -27,7 +28,7 @@ class MainPage extends StatefulWidget {
 
 class MainPageState extends State<MainPage> with TickerProviderStateMixin {
   /// refreshes location and forecast every 6 hours
-  Timer timer;
+  late Timer timer;
 
   /// key to insert and remove items in animated list
   GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey();
@@ -39,16 +40,18 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
   bool dialogShown = false;
 
   /// list view animated icon controller
-  AnimationController _iconController;
+  late AnimationController _iconController =
+      AnimationController(vsync: this, duration: Duration(milliseconds: 300));
 
   /// used to animate to position
   ScrollController _scrollController = ScrollController();
 
   /// FadeScaleTransition controller (search and FAB)
-  AnimationController fadeScaleController;
+  late AnimationController fadeScaleController =
+      AnimationController(vsync: this, duration: Duration(milliseconds: 300));
 
   /// instance variable so that [currentLocation] is not null
-  location_plugin.LocationData currentLocation;
+  late location_plugin.LocationData currentLocation;
   location_plugin.Location locator = location_plugin.Location();
 
   /// get and add current location to locations list
@@ -58,41 +61,16 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
       if (await Permission.locationAlways.isGranted) {
         locator.onLocationChanged.listen((location) {
           currentLocation = location;
-          _getCurrentLocation(); /// update forecast when location changed
+          _addCurrentLocation();
+
+          /// update forecast when location changed
         });
       } else if (await Permission.location.request().isGranted) {
         currentLocation = await locator.getLocation();
+        _addCurrentLocation();
       }
-
-      // Address address = await geocode.reverseGeocoding(latitude: currentLocation?.latitude,
-      //     longitude: currentLocation?.longitude);
-
-      if (currentLocation != null)  {
-        List<geocode.Placemark> addresses =
-            await geocode.placemarkFromCoordinates(
-                currentLocation?.latitude, currentLocation?.longitude);
-
-        Location location = Location(
-          name: '${addresses.first.locality}, ${addresses.first.administrativeArea}',
-          lon: currentLocation.longitude,
-          lat: currentLocation.latitude,
-          isCurrentLocation: true,
-        );
-
-        if (locations.isEmpty) {
-          locations.add(location);
-          insertLocation(locations.indexOf(location));
-          await getForecast(location).catchError((e) {
-            showSnackbar(context,
-                'Something went wrong while getting forecast for ${location.name}');
-            locations.remove(location);
-          });
-        } else {
-          locations[0] = location;
-          getForecast(location).then((value) => setState(() {}));
-        }
-      }
-    } else if (!dialogShown) { /// location services prompt logic
+    } else if (!dialogShown) {
+      /// location services prompt logic
       dialogShown = true;
       showDialog(
           context: context,
@@ -107,10 +85,11 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
                   padding: EdgeInsets.only(left: 100, right: 100),
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(5)),
-                    primary: Colors.blue[600],),
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(5)),
+                      primary: Colors.blue[600],
+                    ),
                     onPressed: () {
                       Navigator.of(context).pop();
                       _getCurrentLocation();
@@ -124,6 +103,35 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
               ],
             );
           });
+    }
+  }
+
+  Future<void> _addCurrentLocation() async {
+    // Address address = await geocode.reverseGeocoding(latitude: currentLocation?.latitude,
+    //     longitude: currentLocation?.longitude);
+
+    List<geocode.Placemark> addresses = await geocode.placemarkFromCoordinates(
+        currentLocation.latitude!, currentLocation.longitude!);
+
+    Location location = Location(
+      name:
+          '${addresses.first.locality}, ${addresses.first.administrativeArea}',
+      lon: currentLocation.longitude!,
+      lat: currentLocation.latitude!,
+      isCurrentLocation: true,
+    );
+
+    if (locations.isEmpty) {
+      locations.add(location);
+      insertListItem(locations.indexOf(location));
+      await getForecast(location).catchError((e) {
+        showSnackbar(context,
+            'Something went wrong while getting forecast for ${location.name}');
+        locations.remove(location);
+      });
+    } else {
+      locations[0] = location;
+      getForecast(location).then((value) => setState(() {}));
     }
   }
 
@@ -141,37 +149,30 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
     super.initState();
 
     //set up shared preferences
-    SharedPreferences.getInstance().then((value) {
+    SharedPreferences.getInstance().then((SharedPreferences value) {
       prefs = value;
       // initialize settings
-      locations = Location.decodeList(prefs.get('locations') ?? "[]") ?? [];
-      celsius = prefs.get('celsius') ?? false;
-      dark = prefs.get('dark') ?? false;
-      detailedView = prefs.get('detailedView') ?? false;
-      listView = prefs.get('listView') ?? false;
+      locations = Location.decodeList(prefs.getString('locations') ?? "[]");
+      celsius = prefs.getBool('celsius') ?? false;
+      dark = prefs.getBool('dark') ?? false;
+      detailedView = prefs.getBool('detailedView') ?? false;
+      listView = prefs.getBool('listView') ?? false;
       if (listView) _iconController.forward();
 
       prefsSet = true;
       // set forecast data
-      Future.forEach(locations, (location) {
+      Future.forEach(locations, (Location location) {
         getForecast(location).then((value) => setState(() {}));
-        insertLocation(locations.indexOf(location));
+        insertListItem(locations.indexOf(location));
       }).then((value) => _getCurrentLocation());
       if (detailedView)
-        Navigator.of(context).push(SharedAxisPageRoute(
-            page: DetailedPage(0),
+        Navigator.of(context).push(SharedAxisPageRoute(DetailedPage(0),
             transitionType: SharedAxisTransitionType.vertical));
     });
 
     buildCityList();
 
-    //view list animated icon controller
-    _iconController =
-        AnimationController(vsync: this, duration: Duration(milliseconds: 300));
-    fadeScaleController =
-        AnimationController(vsync: this, duration: Duration(milliseconds: 300));
-
-    WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
+    WidgetsBinding.instance?.addPostFrameCallback((timeStamp) {
       Future.delayed(Duration(milliseconds: 200), () {
         fadeScaleController.forward();
       });
@@ -186,12 +187,12 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
   @override
   void dispose() {
     super.dispose();
-    timer?.cancel();
+    timer.cancel();
   }
 
   // TODO refresh does not work with pull down 100% of the time
   Future<void> refresh() {
-    return Future.forEach(locations, (location) {
+    return Future.forEach(locations, (Location location) {
       if (!location.isCurrentLocation)
         getForecast(location).then((value) => setState(() {}));
     }).then((value) => _getCurrentLocation());
@@ -207,13 +208,12 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
           onPressed: () =>
               showSearch(context: context, delegate: Delegate()).then((value) {
             if (value != null)
-              addLocation(context, Location(name: value), (_) {
+              addLocation(context, Location(name: value)).then((_) {
                 setState(() {});
                 _scrollController.animateTo(
                     _scrollController.position.maxScrollExtent,
                     duration: Duration(milliseconds: 500),
                     curve: Curves.easeInOutCirc);
-                return true as dynamic;
               });
           }),
           child: Icon(Icons.add, color: Colors.white),
@@ -233,7 +233,7 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
                   color: Colors.white,
                 ),
                 onPressed: () => Navigator.of(context).push(SharedAxisPageRoute(
-                    page: SettingsPage(),
+                    SettingsPage(),
                     transitionType: SharedAxisTransitionType.horizontal))),
             Spacer(),
             IconButton(
@@ -256,6 +256,7 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
       ),
       body: NestedScrollView(
         physics: BouncingScrollPhysics(),
+
         /// TODO fix the sliver bar not retracting due  to ListView scroll controller
         headerSliverBuilder: (context, index) {
           return [
@@ -268,19 +269,21 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
                 animation: fadeScaleController,
                 child: Center(
                   child: RichText(
-                    text: TextSpan(
-                      text: 'WRIGHT ',
-                    style: GoogleFonts.montserrat(
-                        fontSize: 30, fontWeight: FontWeight.bold,
-                    color: Colors.white),
-                      children:  [
+                      text: TextSpan(
+                          text: 'WRIGHT ',
+                          style: GoogleFonts.montserrat(
+                              fontSize: 30,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white),
+                          children: [
                         TextSpan(
-                        text: 'WEATHER',
-                        style: GoogleFonts.montserrat(
-                            fontSize: 30, fontWeight: FontWeight.bold,
-                        color: Colors.black),)
-                      ]
-                    )),
+                          text: 'WEATHER',
+                          style: GoogleFonts.montserrat(
+                              fontSize: 30,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black),
+                        )
+                      ])),
                 ),
               ),
             ),
@@ -301,11 +304,11 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
           ];
         },
         body: RefreshIndicator(
-        strokeWidth: 3,
-        key: Key('refresh'),
-        onRefresh: refresh,
-        color: Theme.of(context).colorScheme.secondary,
-        child: AnimatedList(
+          strokeWidth: 3,
+          key: Key('refresh'),
+          onRefresh: refresh,
+          color: Theme.of(context).colorScheme.secondary,
+          child: AnimatedList(
               physics: BouncingScrollPhysics(),
               shrinkWrap: true,
               key: listKey,
@@ -337,7 +340,7 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
                   child: FittedBox(
                     fit: BoxFit.fitWidth,
                     child: Text(
-                      location?.name,
+                      location.name,
                       textAlign: TextAlign.center,
                       style: GoogleFonts.questrial(
                           fontWeight: FontWeight.bold,
@@ -358,7 +361,7 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
                           label: 'UNDO',
                           onPressed: () {
                             locations.insert(index, location);
-                            insertLocation(index);
+                            insertListItem(index);
                           }));
                 },
                 child: Column(
@@ -406,7 +409,7 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
       /// opens detailed view on tap
       child: InkWell(
         onTap: () => Navigator.of(context).push(SharedAxisPageRoute(
-            page: DetailedPage(locations.indexOf(location)),
+            DetailedPage(locations.indexOf(location)),
             transitionType: SharedAxisTransitionType.vertical,
             duration: Duration(milliseconds: 500))),
         borderRadius: BorderRadius.circular(20),
@@ -432,7 +435,7 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
                         child: Material(
                           color: Colors.transparent,
                           child: Text(
-                            location?.name,
+                            location.name,
                             overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.questrial(
                                 fontWeight: FontWeight.bold,
@@ -456,7 +459,8 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
                                     : ' ${(location.getTemp(day: 0).toString() + '°').contains('null') ? '' : location.getTemp(day: 0).toString() + '°'}',
                                 style: GoogleFonts.questrial(
                                     fontSize: 60,
-                                    color: Theme.of(context).colorScheme.secondary,
+                                    color:
+                                        Theme.of(context).colorScheme.secondary,
                                     fontWeight: FontWeight.bold)),
                           ),
                         )),
@@ -465,8 +469,8 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
                 RichText(
                     text: TextSpan(
                         text:
-                            '${location.forecast?.getDaily(0, 'name') ?? 'Loading...'} '
-                            '${location.forecast?.getDaily(0, 'name') != null ? location.time ?? '' : ''}\n',
+                            '${location.forecast.getDaily(0, 'name') ?? 'Loading...'} '
+                            '${location.forecast.getDaily(0, 'name') != null ? location.time : ''}\n',
                         style: GoogleFonts.lato(
                           fontStyle: FontStyle.italic,
                           fontSize: 18,
@@ -588,9 +592,8 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
 
 /// allows for easier syntax when using SharedAxisTransition
 class SharedAxisPageRoute extends PageRouteBuilder {
-  SharedAxisPageRoute(
-      {Widget page,
-      SharedAxisTransitionType transitionType,
+  SharedAxisPageRoute(Widget page,
+      {required SharedAxisTransitionType transitionType,
       Duration duration = const Duration(milliseconds: 300)})
       : super(
           pageBuilder: (

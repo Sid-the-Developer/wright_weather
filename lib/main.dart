@@ -16,13 +16,13 @@ import 'locationData.dart';
 import 'splashscreen.dart';
 
 /// global variables for access in other files
-SharedPreferences prefs;
-bool celsius;
-bool dark;
-bool detailedView;
-List<Location> locations = [];
-List cityList;
-bool prefsSet = false;
+late SharedPreferences prefs;
+late bool celsius;
+late bool dark;
+late bool detailedView;
+late List<Location> locations = [];
+late List cityList;
+late bool prefsSet = false;
 /// Geocode plugin initialization
 // GeoCode geocode = GeoCode();
 
@@ -37,7 +37,7 @@ toCelsius(temp) =>
     temp == null ? '' : ((temp - 32) * 5.0 / 9).round().toString() + '°';
 
 showSnackbar(BuildContext context, String text,
-    {SnackBarAction action}) {
+    {SnackBarAction? action}) {
   ScaffoldMessenger.of(context).hideCurrentSnackBar();
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       behavior: SnackBarBehavior.floating,
@@ -52,7 +52,7 @@ showSnackbar(BuildContext context, String text,
 
 /// adds the passed location in locations
 /// TODO MAKE IT SPEEEEED
-Future<void> addLocation(BuildContext context, Location location, Function action) async {
+Future<void> addLocation(BuildContext context, Location location) async {
   if (!locations.contains(location)) {
     // Coordinates coordinates = await geocode.forwardGeocoding(address: location.name);
     List<geocode.Location> addresses = await geocode.locationFromAddress(location.name);
@@ -64,13 +64,13 @@ Future<void> addLocation(BuildContext context, Location location, Function actio
     location.lat = addresses.first.latitude;
 
     locations.add(location);
-    // insert location before getting forecast because
-    insertLocation(locations.indexOf(location));
-    getForecast(location).then(action, onError: (e) {
+    // insert location before getting forecast for latency
+    insertListItem(locations.indexOf(location));
+    return getForecast(location).onError((e, _) {
       // show error and try again
       showSnackbar(context, 'Something went wrong while adding ${location.name}');
       removeLocation(location);
-      addLocation(context, location, action);
+      addLocation(context, location);
     });
   } else {
     showSnackbar(
@@ -85,8 +85,8 @@ void removeLocation(Location location) {
   int index = locations.indexOf(location);
   locations.remove(location);
   if (prefsSet) prefs.setString('locations', Location.encodeList(locations));
-  listKey.currentState.removeItem(index, (context, animation) => Container(),
-      duration: Duration.zero);
+  listKey.currentState?.removeItem(index, (context, animation) => Container(),
+      duration: Duration(milliseconds: 500));
 }
 
 /// gets all forecasts from NWS and sets them in forecast object of each location
@@ -111,8 +111,8 @@ Future<void> getForecast(Location location) async {
 
 /// global version no longer needed b/c detailedPage uses PageView
 /// TODO find a way to show new item after its added
-insertLocation(index) {
-  listKey?.currentState
+insertListItem(int index) {
+  listKey.currentState
       ?.insertItem(index, duration: Duration(milliseconds: 500));
 }
 
@@ -134,55 +134,53 @@ Widget precip(String forecast) {
 /// returns weather icon for forecast
 Widget icon(String forecast,
     {double size = 50, bool label = false, bool night = false}) {
-  String path;
+  String? path;
   String description = '';
 
   /// searches for each keyword to find correct icon
-  if (forecast != null) {
-    if (forecast.contains(RegExp('storms', caseSensitive: false))) {
-      if (forecast.contains(RegExp('sunny', caseSensitive: false))) {
-        path = 'stormy-day.png';
-        description = 'Scattered Thunderstorms';
-      } else {
-        night ? path = 'stormy-night.png' : path = 'storm.png';
-        description = 'Thunderstorm';
-      }
-    } else if (forecast.contains(RegExp('hail', caseSensitive: false)) ||
-        forecast.contains(RegExp('sleet', caseSensitive: false))) {
-      path = 'hail.png';
-      description = 'Hail';
-    } else if (forecast.contains(RegExp('snow', caseSensitive: false))) {
-      path = 'snow.png';
-      description = 'Snow';
-    } else if (forecast.contains(RegExp('snow mix', caseSensitive: false))) {
-      path = 'sleet.png';
-      description = 'Sleet';
-    } else if (forecast.contains(RegExp('showers', caseSensitive: false)) ||
-        forecast.contains(RegExp('drizzle', caseSensitive: false)) ||
-        forecast.contains(RegExp('rain', caseSensitive: false))) {
-      if (forecast.contains(RegExp('sunny', caseSensitive: false))) {
-        path = 'rain-cloud-day.png';
-        description = 'Scattered Showers';
-      } else {
-        path = 'rain.png';
-        description = 'Showers';
-      }
-    } else if (forecast.contains(RegExp('fog', caseSensitive: false))) {
-      path = 'fog.png';
-      description = 'Foggy';
-    } else if (forecast
-        .contains(RegExp('partly cloudy', caseSensitive: false))) {
-      night ? path = 'night.png' : path = 'partly-cloudy-day.png';
-      description = 'Partly Cloudy';
-    } else if (forecast.contains(RegExp('sunny', caseSensitive: false))) {
-      path = 'sun.png';
-      forecast.contains(RegExp('mostly sunny', caseSensitive: false))
-          ? description = 'Mostly Sunny'
-          : description = 'Sunny';
-    } else if (forecast.contains(RegExp('cloud', caseSensitive: false))) {
-      path = 'clouds.png';
-      description = 'Cloudy';
+  if (forecast.contains(RegExp('storms', caseSensitive: false))) {
+    if (forecast.contains(RegExp('sunny', caseSensitive: false))) {
+      path = 'stormy-day.png';
+      description = 'Scattered Thunderstorms';
+    } else {
+      night ? path = 'stormy-night.png' : path = 'storm.png';
+      description = 'Thunderstorm';
     }
+  } else if (forecast.contains(RegExp('hail', caseSensitive: false)) ||
+      forecast.contains(RegExp('sleet', caseSensitive: false))) {
+    path = 'hail.png';
+    description = 'Hail';
+  } else if (forecast.contains(RegExp('snow', caseSensitive: false))) {
+    path = 'snow.png';
+    description = 'Snow';
+  } else if (forecast.contains(RegExp('snow mix', caseSensitive: false))) {
+    path = 'sleet.png';
+    description = 'Sleet';
+  } else if (forecast.contains(RegExp('showers', caseSensitive: false)) ||
+      forecast.contains(RegExp('drizzle', caseSensitive: false)) ||
+      forecast.contains(RegExp('rain', caseSensitive: false))) {
+    if (forecast.contains(RegExp('sunny', caseSensitive: false))) {
+      path = 'rain-cloud-day.png';
+      description = 'Scattered Showers';
+    } else {
+      path = 'rain.png';
+      description = 'Showers';
+    }
+  } else if (forecast.contains(RegExp('fog', caseSensitive: false))) {
+    path = 'fog.png';
+    description = 'Foggy';
+  } else if (forecast
+      .contains(RegExp('partly cloudy', caseSensitive: false))) {
+    night ? path = 'night.png' : path = 'partly-cloudy-day.png';
+    description = 'Partly Cloudy';
+  } else if (forecast.contains(RegExp('sunny', caseSensitive: false))) {
+    path = 'sun.png';
+    forecast.contains(RegExp('mostly sunny', caseSensitive: false))
+        ? description = 'Mostly Sunny'
+        : description = 'Sunny';
+  } else if (forecast.contains(RegExp('cloud', caseSensitive: false))) {
+    path = 'clouds.png';
+    description = 'Cloudy';
   }
 
   return path != null
@@ -225,18 +223,18 @@ Widget buildSevenDay(Location location) {
       physics: BouncingScrollPhysics(),
       children: List.generate(13, (index) {
         /// returns item only if its the day item in NWS API
-        if ((location.forecast?.getDaily(index, 'isDaytime') ?? false)) {
+        if ((location.forecast.getDaily(index, 'isDaytime') ?? false)) {
           return Padding(
             padding: EdgeInsets.fromLTRB(15, 25, 15, 25),
             child: Column(
               children: [
-                precip(location.forecast?.getDaily(index, 'detailedForecast')),
-                icon(location.forecast?.getDaily(index, 'shortForecast')),
+                precip(location.forecast.getDaily(index, 'detailedForecast')),
+                icon(location.forecast.getDaily(index, 'shortForecast')),
 
                 /// text for the day
                 Center(
                     child: Text(
-                  '${location.forecast?.getDaily(index, 'name')}',
+                  '${location.forecast.getDaily(index, 'name')}',
                   style: GoogleFonts.lato(fontWeight: FontWeight.bold),
                 )),
 

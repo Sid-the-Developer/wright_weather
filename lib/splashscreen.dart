@@ -4,14 +4,15 @@ import 'package:flutter/services.dart';
 import 'package:wright_weather/listPage.dart';
 
 class SplashPage extends StatefulWidget {
-  SplashPage({Key key}) : super(key: key);
+  SplashPage({Key? key}) : super(key: key);
 
   @override
   SplashPageState createState() => SplashPageState();
 }
 
 class SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
-  AnimationController controller;
+  late AnimationController controller =
+    AnimationController(vsync: this, duration: Duration(seconds: 1));
 
   @override
   void initState() {
@@ -20,15 +21,13 @@ class SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
         statusBarColor: Color(0xff24A4FE),
         statusBarIconBrightness: Brightness.light));
-    controller =
-        AnimationController(vsync: this, duration: Duration(seconds: 1));
-    controller.forward();
 
     controller.addStatusListener((status) async {
       if (status == AnimationStatus.completed)
         Navigator.of(context).pushReplacement(SharedAxisPageRoute(
-            page: MainPage(), transitionType: SharedAxisTransitionType.scaled));
+            MainPage(), transitionType: SharedAxisTransitionType.scaled));
     });
+    controller.forward();
   }
 
   @override
@@ -40,7 +39,7 @@ class SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return GestureDetector(
         onTap: () => Navigator.of(context).pushReplacement(SharedAxisPageRoute(
-            page: MainPage(), transitionType: SharedAxisTransitionType.scaled)),
+            MainPage(), transitionType: SharedAxisTransitionType.scaled)),
         child: Scaffold(
           backgroundColor: Color(0xff24A4FE),
           body: FadeTransition(

@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'main.dart';
 
 class SettingsPage extends StatefulWidget {
-  SettingsPage({Key key}) : super(key: key);
+  SettingsPage({Key? key}) : super(key: key);
 
   SettingsPageState createState() => SettingsPageState();
 }
@@ -41,6 +41,7 @@ class SettingsPageState extends State<SettingsPage> {
                 setState(() => celsius = value);
                 prefs.setBool('celsius', value);
               },
+              activeColor: Theme.of(context).colorScheme.secondary,
             ),
             SwitchListTile(
                 title: Text('Dark Mode', style: GoogleFonts.lato(fontSize: 18)),
@@ -48,8 +49,10 @@ class SettingsPageState extends State<SettingsPage> {
                 onChanged: (value) {
                   setState(() => dark = value);
                   prefs.setBool('dark', value);
-                }),
-            SwitchListTile(
+                },
+                activeColor: Theme.of(context).colorScheme.secondary,
+            ),
+                SwitchListTile(
               title: Text(
                 'Open to detailed view',
                 style: GoogleFonts.lato(fontSize: 18),
@@ -59,6 +62,7 @@ class SettingsPageState extends State<SettingsPage> {
                 setState(() => detailedView = value);
                 prefs.setBool('detailedView', value);
               },
+              activeColor: Theme.of(context).colorScheme.secondary,
             )
           ]).toList(),
         ));
