@@ -22,11 +22,15 @@ import 'settings.dart';
 class MainPage extends StatefulWidget {
   MainPage({Key? key}) : super(key: key);
 
+  static of(BuildContext context, {bool root = false}) => root
+      ? context.findRootAncestorStateOfType<_MainPageState>()
+      : context.findAncestorStateOfType<_MainPageState>();
+
   @override
-  MainPageState createState() => MainPageState();
+  _MainPageState createState() => _MainPageState();
 }
 
-class MainPageState extends State<MainPage> with TickerProviderStateMixin {
+class _MainPageState extends State<MainPage> with TickerProviderStateMixin {
   /// refreshes location and forecast every 6 hours
   late Timer timer;
 
@@ -47,71 +51,82 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
   ScrollController _scrollController = ScrollController();
 
   /// FadeScaleTransition controller (search and FAB)
-  late AnimationController fadeScaleController =
+  late AnimationController _fadeScaleController =
       AnimationController(vsync: this, duration: Duration(milliseconds: 300));
 
   /// instance variable so that [currentLocation] is not null
-  late location_plugin.LocationData currentLocation;
+  location_plugin.LocationData currentLocation =
+      location_plugin.LocationData.fromMap(Map());
   location_plugin.Location locator = location_plugin.Location();
 
-  /// get and add current location to locations list
+  /// get (and add if need be) current location to locations list
   Future<void> _getCurrentLocation() async {
     if (await Permission.location.serviceStatus.isEnabled) {
-      /// not tested but should
+      // not tested but should
       if (await Permission.locationAlways.isGranted) {
-        locator.onLocationChanged.listen((location) {
-          currentLocation = location;
-          _addCurrentLocation();
-
-          /// update forecast when location changed
+        locator.onLocationChanged.listen((newLocation) async {
+          // update forecast
+          if (currentLocation != newLocation) {
+            currentLocation = newLocation;
+            await _addCurrentLocation();
+          } else {
+            locations[0].updateForecast(context);
+          }
         });
       } else if (await Permission.location.request().isGranted) {
-        currentLocation = await locator.getLocation();
-        _addCurrentLocation();
+        location_plugin.LocationData newLocation = await locator.getLocation();
+        // update forecast
+        if (currentLocation != newLocation) {
+          currentLocation = newLocation;
+          await _addCurrentLocation();
+        } else {
+          locations[0].updateForecast(context);
+        }
+      } else if (!dialogShown) {
+        // location services prompt logic
+        dialogShown = true;
+        showDialog(
+            context: context,
+            builder: (context) {
+              return SimpleDialog(
+                title: Text(
+                  'Enable location services',
+                  style: GoogleFonts.lato(),
+                ),
+                children: [
+                  Padding(
+                    padding: EdgeInsets.only(left: 100, right: 100),
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        elevation: 4,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(5)),
+                        primary: Colors.blue[600],
+                      ),
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        _getCurrentLocation();
+                      },
+                      child: Text(
+                        'OK',
+                        style: GoogleFonts.lato(color: Colors.white),
+                      ),
+                    ),
+                  )
+                ],
+              );
+            });
       }
-    } else if (!dialogShown) {
-      /// location services prompt logic
-      dialogShown = true;
-      showDialog(
-          context: context,
-          builder: (context) {
-            return SimpleDialog(
-              title: Text(
-                'Enable location services',
-                style: GoogleFonts.lato(),
-              ),
-              children: [
-                Padding(
-                  padding: EdgeInsets.only(left: 100, right: 100),
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      elevation: 4,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(5)),
-                      primary: Colors.blue[600],
-                    ),
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      _getCurrentLocation();
-                    },
-                    child: Text(
-                      'OK',
-                      style: GoogleFonts.lato(color: Colors.white),
-                    ),
-                  ),
-                )
-              ],
-            );
-          });
     }
   }
 
-  Future<void> _addCurrentLocation() async {
+  /// constructs [Location] object and adds current location to the list
+  /// Returns the constructed object as [Future]
+  Future<Location> _addCurrentLocation() async {
     // Address address = await geocode.reverseGeocoding(latitude: currentLocation?.latitude,
     //     longitude: currentLocation?.longitude);
-
     List<geocode.Placemark> addresses = await geocode.placemarkFromCoordinates(
-        currentLocation.latitude!, currentLocation.longitude!);
+        currentLocation.latitude ?? 0, currentLocation.longitude ?? 0);
 
     Location location = Location(
       name:
@@ -120,19 +135,15 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
       lat: currentLocation.latitude!,
       isCurrentLocation: true,
     );
+    await location.updateForecast(context);
 
-    if (locations.isEmpty) {
-      locations.add(location);
-      insertListItem(locations.indexOf(location));
-      await getForecast(location).catchError((e) {
-        showSnackbar(context,
-            'Something went wrong while getting forecast for ${location.name}');
-        locations.remove(location);
-      });
-    } else {
+    if (locations.isNotEmpty && locations[0].isCurrentLocation) {
       locations[0] = location;
-      getForecast(location).then((value) => setState(() {}));
+    } else {
+      locations.insert(0, location);
+      insertListItem(0);
     }
+    return location;
   }
 
   /// initializes [cityList] to open search faster
@@ -141,9 +152,9 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
     cityList = await json.decode(data);
   }
 
-  /// sets variables that need context and begins to get current location
+  /// sets variables that need context and begins to get current location.
   /// getCurrentLocation() is in initState() so that it is called once at
-  /// the beginning of the app
+  /// the beginning of the app.
   @override
   void initState() {
     super.initState();
@@ -151,6 +162,7 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
     //set up shared preferences
     SharedPreferences.getInstance().then((SharedPreferences value) {
       prefs = value;
+      // prefs.clear();
       // initialize settings
       locations = Location.decodeList(prefs.getString('locations') ?? "[]");
       celsius = prefs.getBool('celsius') ?? false;
@@ -162,9 +174,10 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
       prefsSet = true;
       // set forecast data
       Future.forEach(locations, (Location location) {
-        getForecast(location).then((value) => setState(() {}));
+        location.updateForecast(context);
         insertListItem(locations.indexOf(location));
-      }).then((value) => _getCurrentLocation());
+      });
+
       if (detailedView)
         Navigator.of(context).push(SharedAxisPageRoute(DetailedPage(0),
             transitionType: SharedAxisTransitionType.vertical));
@@ -172,9 +185,10 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
 
     buildCityList();
 
+    _getCurrentLocation();
     WidgetsBinding.instance?.addPostFrameCallback((timeStamp) {
       Future.delayed(Duration(milliseconds: 200), () {
-        fadeScaleController.forward();
+        _fadeScaleController.forward();
       });
 
       //timer to update current location and forecasts
@@ -190,12 +204,14 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
     timer.cancel();
   }
 
-  // TODO refresh does not work with pull down 100% of the time
+  // TODO: remove setState
   Future<void> refresh() {
     return Future.forEach(locations, (Location location) {
-      if (!location.isCurrentLocation)
-        getForecast(location).then((value) => setState(() {}));
-    }).then((value) => _getCurrentLocation());
+      if (!location.isCurrentLocation) location.updateForecast(context);
+    }).then((value) {
+      _getCurrentLocation();
+      setState((){});
+    });
   }
 
   Widget build(BuildContext context) {
@@ -203,14 +219,13 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
       key: _scaffoldKey,
       extendBody: true,
       floatingActionButton: FadeScaleTransition(
-        animation: fadeScaleController,
+        animation: _fadeScaleController,
         child: FloatingActionButton(
           onPressed: () =>
               showSearch(context: context, delegate: Delegate()).then((value) {
             if (value != null)
               addLocation(context, Location(name: value)).then((_) {
-                setState(() {});
-                _scrollController.animateTo(
+                return _scrollController.animateTo(
                     _scrollController.position.maxScrollExtent,
                     duration: Duration(milliseconds: 500),
                     curve: Curves.easeInOutCirc);
@@ -256,7 +271,7 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
       ),
       body: NestedScrollView(
         physics: BouncingScrollPhysics(),
-
+        clipBehavior: Clip.none,
         /// TODO fix the sliver bar not retracting due  to ListView scroll controller
         headerSliverBuilder: (context, index) {
           return [
@@ -266,7 +281,7 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
                   borderRadius: BorderRadius.circular(15)),
               backgroundColor: Color(0xff24A4FE),
               title: FadeScaleTransition(
-                animation: fadeScaleController,
+                animation: _fadeScaleController,
                 child: Center(
                   child: RichText(
                       text: TextSpan(
@@ -308,14 +323,17 @@ class MainPageState extends State<MainPage> with TickerProviderStateMixin {
           key: Key('refresh'),
           onRefresh: refresh,
           color: Theme.of(context).colorScheme.secondary,
-          child: AnimatedList(
-              physics: BouncingScrollPhysics(),
-              shrinkWrap: true,
-              key: listKey,
-              initialItemCount: locations.length,
-              itemBuilder: (context, index, Animation animation) {
-                return buildDraggable(locations[index], animation);
-              }),
+          child: ValueListenableBuilder(
+            valueListenable: locationsNotifier,
+            builder: (context, value, child) => AnimatedList(
+                physics: BouncingScrollPhysics(),
+                shrinkWrap: true,
+                key: listKey,
+                initialItemCount: locations.length,
+                itemBuilder: (context, index, Animation animation) {
+                  return buildDraggable(locations[index], animation);
+                }),
+          ),
         ),
       ),
     );

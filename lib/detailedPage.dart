@@ -13,12 +13,16 @@ class DetailedPage extends StatefulWidget {
   DetailedPage(this.index, {Key? key}) : super(key: key);
   final int index;
 
+  static of(BuildContext context, {bool root = false}) => root
+      ? context.findRootAncestorStateOfType<_DetailedPageState>()
+      : context.findAncestorStateOfType<_DetailedPageState>();
+
   @override
-  DetailedPageState createState() => DetailedPageState(index);
+  _DetailedPageState createState() => _DetailedPageState(index);
 }
 
-class DetailedPageState extends State<DetailedPage> {
-  DetailedPageState(this.initialPage);
+class _DetailedPageState extends State<DetailedPage> {
+  _DetailedPageState(this.initialPage);
 
   int initialPage;
   late PageController _controller =
@@ -42,8 +46,6 @@ class DetailedPageState extends State<DetailedPage> {
           Location location = Location(name: value);
           if (value != null)
             addLocation(context, location).then((_) {
-              // setState(() {}); animation could automatically setstate
-
               _controller.animateToPage(locations.indexOf(location),
                   duration: Duration(milliseconds: 1000),
                   curve: /*TODO test curve*/ Curves.easeInOutCirc);
@@ -52,108 +54,111 @@ class DetailedPageState extends State<DetailedPage> {
         child: Icon(Icons.add, color: Colors.white),
         backgroundColor: Theme.of(context).colorScheme.secondary,
       ),
-      body: PageView.builder(
-          key: detailKey,
-          itemCount: locations.length,
-          physics: BouncingScrollPhysics(),
-          scrollDirection: Axis.horizontal,
-          controller: _controller,
-          itemBuilder: (context, index) {
-            Location location = locations[index];
-            return Dismissible(
+      body: ValueListenableBuilder(
+        valueListenable: locationsNotifier,
+        builder: (context, value, child) => PageView.builder(
+            key: detailKey,
+            itemCount: locations.length,
+            physics: BouncingScrollPhysics(),
+            scrollDirection: Axis.horizontal,
+            controller: _controller,
+            itemBuilder: (context, index) {
+              Location location = locations[index];
+              return Dismissible(
 
-                ///TODO fix the dismissible lag
-                direction: DismissDirection.up,
-                key: Key(location.name),
-                onDismissed: (direction) {
-                  int index = locations.indexOf(location);
-                  setState(() {
-                    removeLocation(location);
-                  });
+                  ///TODO fix the dismissible lag
+                  direction: DismissDirection.up,
+                  key: Key(location.name),
+                  onDismissed: (direction) {
+                    int index = locations.indexOf(location);
+                    setState(() {
+                      removeLocation(location);
+                    });
 
-                  /// undo location removal snackbar
-                  showSnackbar(context, '${location.name} removed',
-                      action: SnackBarAction(
-                          label: 'UNDO',
-                          onPressed: () {
-                            setState(() => locations.insert(index, location));
-                            _controller.animateToPage(
-                                locations.indexOf(location),
-                                duration: Duration(seconds: 1),
-                                curve: Curves.easeInOutCirc);
-                            // insertLocation(index);
-                          }));
-                },
+                    /// undo location removal snackbar
+                    showSnackbar(context, '${location.name} removed',
+                        action: SnackBarAction(
+                            label: 'UNDO',
+                            onPressed: () {
+                              setState(() => locations.insert(index, location));
+                              _controller.animateToPage(
+                                  locations.indexOf(location),
+                                  duration: Duration(seconds: 1),
+                                  curve: Curves.easeInOutCirc);
+                              // insertLocation(index);
+                            }));
+                  },
 
-                /// column of city name and list of cards
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 32, top: 32),
-                      child: GestureDetector(
-                        onVerticalDragUpdate: (DragUpdateDetails details) {
-                          if (details.primaryDelta! > 5) {
-                            Navigator.of(context).pop();
-                          }
-                        },
-                        child: Hero(
-                          tag: '${location.name}',
-                          child: Material(
-                              color: Colors.transparent,
+                  /// column of city name and list of cards
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 32, top: 32),
+                        child: GestureDetector(
+                          onVerticalDragUpdate: (DragUpdateDetails details) {
+                            if (details.primaryDelta! > 5) {
+                              Navigator.of(context).pop();
+                            }
+                          },
+                          child: Hero(
+                            tag: '${location.name}',
+                            child: Material(
+                                color: Colors.transparent,
 
-                              /// city name and location icon
-                              child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    location.isCurrentLocation
-                                        ? Padding(
-                                            padding:
-                                                const EdgeInsets.only(right: 8),
-                                            child: Icon(
-                                              Icons.location_on,
-                                              color: Colors.grey[600],
-                                            ),
-                                          )
-                                        : Container(),
-                                    Flexible(
-                                      child: Padding(
-                                        padding: const EdgeInsets.only(
-                                            left: 16, right: 16),
-                                        child: Text(
-                                          location.name,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          textAlign: TextAlign.center,
-                                          style: GoogleFonts.questrial(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 30,
-                                              color: Colors.blue),
+                                /// city name and location icon
+                                child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      location.isCurrentLocation
+                                          ? Padding(
+                                              padding:
+                                                  const EdgeInsets.only(right: 8),
+                                              child: Icon(
+                                                Icons.location_on,
+                                                color: Colors.grey[600],
+                                              ),
+                                            )
+                                          : Container(),
+                                      Flexible(
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(
+                                              left: 16, right: 16),
+                                          child: Text(
+                                            location.name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            textAlign: TextAlign.center,
+                                            style: GoogleFonts.questrial(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 30,
+                                                color: Colors.blue),
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ])),
+                                    ])),
+                          ),
                         ),
                       ),
-                    ),
 
-                    /// list of cards
-                    Expanded(
-                      child: ListView(
-                        physics: BouncingScrollPhysics(),
-                        shrinkWrap: true,
-                        children: [
-                          _buildMainCard(location),
-                          _buildTempGraph(location),
-                          _buildDetails(location)
-                        ],
+                      /// list of cards
+                      Expanded(
+                        child: ListView(
+                          physics: BouncingScrollPhysics(),
+                          shrinkWrap: true,
+                          children: [
+                            _buildMainCard(location),
+                            _buildTempGraph(location),
+                            _buildDetails(location)
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ));
-          }),
+                    ],
+                  ));
+            }),
+      ),
     ));
   }
 
@@ -285,7 +290,7 @@ class DetailedPageState extends State<DetailedPage> {
     return [
       SplineAreaSeries<int, String>(
         dataSource: List.generate(
-            12,
+            24,
             (int index) => location.getTemp(hour: index) is String
                 ? 0
                 : location.getTemp(hour: index)),

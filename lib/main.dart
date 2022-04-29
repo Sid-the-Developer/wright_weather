@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,11 +6,8 @@ import 'package:flutter/services.dart';
 // import 'package:geocode/geocode.dart';
 import 'package:geocoding/geocoding.dart' as geocode;
 import 'package:google_fonts/google_fonts.dart';
-import 'package:http/http.dart' as http;
-import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'forecast.dart';
 import 'locationData.dart';
 import 'splashscreen.dart';
 
@@ -20,9 +16,10 @@ late SharedPreferences prefs;
 late bool celsius;
 late bool dark;
 late bool detailedView;
-late List<Location> locations = [];
+List<Location> locations = [];
+ValueNotifier<List<Location>> locationsNotifier = ValueNotifier<List<Location>>(locations);
 late List cityList;
-late bool prefsSet = false;
+bool prefsSet = false;
 /// Geocode plugin initialization
 // GeoCode geocode = GeoCode();
 
@@ -63,15 +60,11 @@ Future<void> addLocation(BuildContext context, Location location) async {
     location.lon = addresses.first.longitude;
     location.lat = addresses.first.latitude;
 
+    void value = await location.updateForecast(context);
     locations.add(location);
     // insert location before getting forecast for latency
     insertListItem(locations.indexOf(location));
-    return getForecast(location).onError((e, _) {
-      // show error and try again
-      showSnackbar(context, 'Something went wrong while adding ${location.name}');
-      removeLocation(location);
-      addLocation(context, location);
-    });
+    return value;
   } else {
     showSnackbar(
       context,
@@ -89,25 +82,6 @@ void removeLocation(Location location) {
       duration: Duration(milliseconds: 500));
 }
 
-/// gets all forecasts from NWS and sets them in forecast object of each location
-/// adds to animated list
-/// idk if its me but the NWS fails to return forecast a lot
-/// TODO tell govt to fix NWS
-Future<void> getForecast(Location location) async {
-  try {
-    String response = await http.read(
-        Uri.parse('https://api.weather.gov/points/${location.lat},${location.lon}'),
-        headers: {'User-Agent': 'Wright Weather App, swright3743@gmail.com'});
-
-    location.forecast = Forecast.fromJSON(json.decode(response));
-    location.time = DateFormat('h:mm a').format(DateTime.now());
-    await location.forecast.setConditions();
-
-    if (prefsSet) prefs.setString('locations', Location.encodeList(locations));
-  } on Exception catch (e) {
-    throw e;
-  }
-}
 
 /// global version no longer needed b/c detailedPage uses PageView
 /// TODO find a way to show new item after its added
@@ -181,6 +155,9 @@ Widget icon(String forecast,
   } else if (forecast.contains(RegExp('cloud', caseSensitive: false))) {
     path = 'clouds.png';
     description = 'Cloudy';
+  } else if (forecast.contains(RegExp('clear', caseSensitive: false))) {
+    path = 'sun.png';
+    description = 'Clear';
   }
 
   return path != null

@@ -1,6 +1,12 @@
 import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
+import 'detailedPage.dart';
 import 'forecast.dart';
+import 'listPage.dart';
+import 'main.dart';
 
 class Location {
   Location(
@@ -9,6 +15,7 @@ class Location {
       this.lon = 0,
       this.lat = 0,
       this.isCurrentLocation = false});
+
   String name;
   String time;
   double lon;
@@ -35,6 +42,39 @@ class Location {
         'isCurrentLocation': location.isCurrentLocation
       };
 
+  /// gets all forecasts from NWS and sets them in forecast object of each location
+  /// adds to animated list
+  /// idk if its me but the NWS fails to return forecast a lot
+  /// TODO tell govt to fix NWS
+  Future<void> getForecast() async {
+    try {
+      String response = await http.read(
+          Uri.parse('https://api.weather.gov/points/${lat},${lon}'),
+          headers: {'User-Agent': 'Wright Weather App, swright3743@gmail.com'});
+
+      forecast = Forecast.fromJSON(json.decode(response));
+      time = DateFormat('h:mm a').format(DateTime.now());
+      await forecast.setConditions();
+
+      if (prefsSet)
+        prefs.setString('locations', Location.encodeList(locations));
+    } on Exception catch (e) {
+      throw e;
+    }
+  }
+
+  /// updates the forecast of the given [location] using
+  /// [getForecast]. Displays error [SnackBar] if necessary.
+  /// Mostly exists to simplify syntax of calling [getForecast].
+  /// TODO: notifyListeners somehow
+  Future<void> updateForecast(BuildContext context) async {
+    return await getForecast().catchError((e) {
+      showSnackbar(
+          context, 'Something went wrong while getting forecast for ${name}');
+      locations.remove(this);
+    });
+  }
+
   /// retrieves short forecast from forecast object. Shorthand method.
   String? getShort({int? day, int? hour}) => day != null
       ? forecast.getDaily(day, 'shortForecast')
@@ -58,5 +98,6 @@ class Location {
       .toList();
 
   @override
-  bool operator ==(Object other) => other is Location ? name == other.name : false;
+  bool operator ==(Object other) =>
+      other is Location ? name == other.name : false;
 }
